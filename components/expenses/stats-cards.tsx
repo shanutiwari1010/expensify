@@ -9,7 +9,8 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatMoney, sumDecimals, toDecimal } from "@/lib/money";
+import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { sumDecimals, toDecimal } from "@/lib/money";
 import type { ExpenseDto } from "@/lib/schemas/expense";
 
 export type StatsCardsProps = {
@@ -22,6 +23,7 @@ export type StatsCardsProps = {
 type Decimal = ReturnType<typeof toDecimal>;
 
 export function StatsCards({ expenses, total }: StatsCardsProps) {
+  const { formatMoney: fmt } = useDisplayCurrency();
   const today = new Date();
   const thisMonth = today.getMonth();
   const thisYear = today.getFullYear();
@@ -59,7 +61,7 @@ export function StatsCards({ expenses, total }: StatsCardsProps) {
           <WalletIcon className="size-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatMoney(total)}</div>
+          <div className="text-2xl font-bold">{fmt(total)}</div>
           <p className="text-xs text-muted-foreground">
             {expenses.length} transaction{expenses.length !== 1 ? "s" : ""}
           </p>
@@ -72,7 +74,7 @@ export function StatsCards({ expenses, total }: StatsCardsProps) {
           <CalendarIcon className="size-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatMoney(thisMonthTotal)}</div>
+          <div className="text-2xl font-bold">{fmt(thisMonthTotal)}</div>
           <p className="text-xs text-muted-foreground">
             {thisMonthExpenses.length} transaction{thisMonthExpenses.length !== 1 ? "s" : ""}
           </p>
@@ -106,7 +108,7 @@ export function StatsCards({ expenses, total }: StatsCardsProps) {
                 </Badge>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {formatMoney(topCategory[1].toFixed(2))} spent
+                {fmt(topCategory[1].toFixed(2))} spent
               </p>
             </>
           ) : (

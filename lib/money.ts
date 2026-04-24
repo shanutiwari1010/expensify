@@ -13,19 +13,43 @@ export function sumDecimals(values: Prisma.Decimal[]): Prisma.Decimal {
   );
 }
 
-// Display formatter. The UI is currency-agnostic by default — we show rupees
-// because the spec uses ₹, but swap the `currency` once we add a setting.
+/** Symbol for `AmountInput` (e.g. ₹, $). */
+export function getCurrencyDisplaySymbol(
+  currencyCode: string,
+  locale?: Intl.LocalesArgument
+): string {
+  try {
+    return (
+      new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: currencyCode,
+        currencyDisplay: "narrowSymbol",
+      })
+        .formatToParts(0)
+        .find((p) => p.type === "currency")?.value ?? currencyCode
+    );
+  } catch {
+    return currencyCode;
+  }
+}
+
+/**
+ * Formats a numeric amount for display. Pass `currency` from the display-currency
+ * preference; amounts in the API/DB are plain decimal strings.
+ */
 export function formatMoney(
   amount: string | number,
   currency: string = "INR",
-  locale: string = "en-IN"
+  locale?: Intl.LocalesArgument
 ): string {
   const n = typeof amount === "string" ? Number(amount) : amount;
   if (!Number.isFinite(n)) return String(amount);
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  }).format(n);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+    }).format(n);
+  } catch {
+    return typeof amount === "string" ? amount : String(amount);
+  }
 }

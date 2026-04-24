@@ -82,14 +82,17 @@ export const AmountInput = React.forwardRef<HTMLInputElement, AmountInputProps>(
 
     return (
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+        <span
+          className="pointer-events-none absolute left-2.5 top-1/2 max-w-16 truncate -translate-y-1/2 text-left text-sm text-muted-foreground"
+          title={String(currency)}
+        >
           {currency}
         </span>
         <Input
           ref={ref}
           type="text"
           inputMode="decimal"
-          className={cn("pl-8 text-lg font-medium tabular-nums", className)}
+          className={cn("pl-10 text-lg font-medium tabular-nums", className)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onChange={handleChange}

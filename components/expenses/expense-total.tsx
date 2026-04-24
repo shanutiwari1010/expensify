@@ -1,5 +1,7 @@
+"use client";
+
 import { ReceiptTextIcon } from "lucide-react";
-import { formatMoney } from "@/lib/money";
+import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
 
 export type ExpenseTotalProps = {
   total: string;
@@ -8,6 +10,7 @@ export type ExpenseTotalProps = {
 };
 
 export function ExpenseTotal({ total, count, filteredCount }: ExpenseTotalProps) {
+  const { formatMoney: fmt } = useDisplayCurrency();
   const showingFiltered = filteredCount !== undefined && filteredCount !== count;
 
   return (
@@ -29,7 +32,7 @@ export function ExpenseTotal({ total, count, filteredCount }: ExpenseTotalProps)
       </div>
       <div className="text-right">
         <span className="font-mono text-2xl font-bold tracking-tight">
-          {formatMoney(total)}
+          {fmt(total)}
         </span>
       </div>
     </div>

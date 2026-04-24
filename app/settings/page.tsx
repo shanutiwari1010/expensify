@@ -1,6 +1,7 @@
 import { SettingsIcon } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { CurrencySettings } from "@/components/settings/currency-settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
@@ -20,17 +21,25 @@ export default function SettingsPage() {
       <div className="flex-1 space-y-6 p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Application Settings</CardTitle>
+            <CardTitle>Amounts & currency</CardTitle>
           </CardHeader>
           <CardContent>
-            <Empty className="py-12">
+            <CurrencySettings />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>More</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Empty className="py-8">
               <EmptyHeader>
                 <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
                   <SettingsIcon className="size-6 text-muted-foreground" />
                 </div>
-                <EmptyTitle>Coming Soon</EmptyTitle>
+                <EmptyTitle>Coming soon</EmptyTitle>
                 <EmptyDescription>
-                  Customize your experience with currency preferences, themes, and more.
+                  Additional options (themes, exports, and more) can live here.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent />
