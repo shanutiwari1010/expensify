@@ -1,13 +1,13 @@
 # Expensify
 
-A small, production-minded personal finance tracker. Add expenses, filter by category, sort by date, and see the running total — built to survive the realities of unreliable networks, double-clicked submits, and page refreshes.
+A small, production-minded personal finance tracker. Add expenses, filter by category, sort and page through the list, and see the running total — built to survive unreliable networks, double-clicked submits, and page refreshes.
 
 ## What's in the box
 
-- **Backend**: `POST /api/expenses`, `GET /api/expenses` (Next.js Route Handlers).
-- **Frontend**: a single screen with an add-expense form, a filterable/sortable list, and a running total.
-- **DB**: Supabase PostgreSQL via Prisma. Money is stored as `Decimal(14, 2)` — never a float.
-- **Retry-safe writes**: `POST` is idempotent via an `Idempotency-Key` header, protected by a transaction.
+- **Backend**: Next.js Route Handlers for `POST`/`GET /api/expenses`, `PATCH`/`DELETE /api/expenses/:id`, and `GET`/`POST` `/api/categories` plus per-id category routes. Money is `Decimal(14, 2)` in the DB, serialized as **strings** on the wire.
+- **Frontend**: App routes under `/` (home), `/expenses` (form + table + **client-side** pagination), `/analytics` (Recharts + drill-downs), and `/settings` (display currency, etc.), with a sidebar shell, command palette, and global display-currency context (`providers/currency-preference-provider.tsx` + `useSyncExternalStore`).
+- **DB**: Supabase PostgreSQL via Prisma. Expenses and user-defined **categories** are relational data (not a hardcoded client enum).
+- **Retry-safe writes**: `POST` is idempotent via an `Idempotency-Key` header, protected by a transaction; the **same** idempotency key is reused on client retries (`lib/api-client.ts` plus shared `config/api.ts` defaults).
 
 ## Tech stack
 
@@ -33,33 +33,34 @@ A small, production-minded personal finance tracker. Add expenses, filter by cat
 
 ```
 app/
-  api/expenses/route.ts     # POST + GET /api/expenses
-  layout.tsx                # Mounts <Toaster />
-  page.tsx                  # Server-seeds initial list, renders <ExpenseTracker />
+  layout.tsx                # Toaster, sidebar, command palette, currency provider
+  page.tsx, expenses/page.tsx, analytics/page.tsx, settings/page.tsx
+  api/
+    expenses/route.ts          # POST + GET
+    expenses/[id]/route.ts     # PATCH + DELETE
+    categories/…, categories/[id]/…
 components/
-  expenses/                 # Feature UI
-    expense-form.tsx        # RHF + zodResolver + stable idempotency key
-    expense-filters.tsx     # Category filter + sort indicator
-    expense-list.tsx        # Table with loading/empty states
-    expense-total.tsx       # Total chip
-    expense-tracker.tsx     # Client-side state container
-  ui/                       # shadcn primitives (don't hand-edit)
+  ui/                    # shadcn primitives (don’t hand-edit; regenerate)
+  layout/                # app-sidebar, command-palette, header
+  expenses/              # tracker, form, list, filters, table pagination, stats, category-manager, …
+  analytics/             # charts & summaries
+  settings/                # e.g. display currency
+providers/
+  currency-preference-provider.tsx
+config/
+  api.ts                 # default retry options for lib/api-client.ts
+constants/
+  http.ts                # e.g. JSON Content-Type
 lib/
-  api-client.ts             # fetch wrapper with retry-with-same-key
-  db.ts                     # Prisma client singleton
-  money.ts                  # Decimal helpers + Intl formatter
-  constants/categories.ts   # Fixed category enum
-  http/
-    errors.ts               # ApiError class
-    responses.ts            # jsonOk / jsonCreated / jsonError
-  schemas/
-    expense.ts              # zod — shared by API + form
-  services/
-    expenses.ts             # Business logic (createExpense, listExpenses)
+  api-client.ts, db.ts, money.ts, expense-view.ts, expense-list-utils.ts, currencies.ts, …
+  schemas/               # zod; expense.ts is shared by API and forms
+  services/              # expenses, categories
+  http/                  # errors, responses, idempotency
 prisma/
-  schema.prisma             # Expense + IdempotencyKey models
-  migrations/               # Generated SQL
+  schema.prisma, migrations/
 ```
+
+`AGENTS.md` is the full convention doc (architecture rules, definition of done, API shape).
 
 ## Getting started
 
@@ -117,8 +118,8 @@ Lists expenses. All query params are optional.
 
 | Param      | Allowed values                                                                  | Default      |
 | ---------- | ------------------------------------------------------------------------------- | ------------ |
-| `category` | `Food`, `Transport`, `Shopping`, `Bills`, `Entertainment`, `Health`, `Other`    | (none)       |
-| `sort`     | `date_desc`                                                                     | `date_desc`  |
+| `category` | Exact name of a **saved** category (case-insensitive match)                      | (none)       |
+| `sort`     | See `EXPENSE_SORT_OPTIONS` in `lib/schemas/expense.ts` (e.g. `date_desc`, `amount_asc`, …) | `date_desc`  |
 
 ```json
 {
@@ -181,10 +182,10 @@ npm run db:studio    # prisma studio
 
 ## What's intentionally not here (yet)
 
-Per the spec, the following are nice-to-haves we didn't ship in the first pass but are one small change each:
+- **Server-side `limit`/`cursor` on `GET /api/expenses`** — the list is fully loaded for now; the table paginates in the client.
+- **Auth / multi-tenant** — local single-user; adding sessions would be `@supabase/ssr` or similar plus middleware.
+- **Automated tests** — service layer is still structured for Vitest + Testing Library when we add them.
 
-- Per-category summary view (just another `groupBy` query).
-- Automated tests (Vitest + Testing Library; the service is already easy to unit-test).
-- Auth (would pull in `@supabase/ssr` + a session middleware).
+The `/analytics` page already surfaces category spending; more reporting can build on the same `Decimal`-safe data.
 
-See `AGENTS.md` for the full set of project conventions, architectural rules, and the definition-of-done checklist the code is held to.
+See `AGENTS.md` for conventions, the API contract, and the definition-of-done checklist.
