@@ -38,9 +38,21 @@ export const createExpenseSchema = z.object({
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
+/** Shared with API, client view logic, and command palette — one source of truth. */
+export const EXPENSE_SORT_OPTIONS = [
+  "date_desc",
+  "date_asc",
+  "amount_desc",
+  "amount_asc",
+] as const;
+export type ExpenseSortOption = (typeof EXPENSE_SORT_OPTIONS)[number];
+
 export const listExpensesQuerySchema = z.object({
   category: z.string().optional(),
-  sort: z.enum(["date_desc", "date_asc", "amount_desc", "amount_asc"]).optional().default("date_desc"),
+  sort: z
+    .enum(EXPENSE_SORT_OPTIONS)
+    .optional()
+    .default("date_desc"),
 });
 
 export type ListExpensesQuery = z.infer<typeof listExpensesQuerySchema>;

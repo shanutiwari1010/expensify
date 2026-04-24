@@ -1,7 +1,7 @@
 import type {
   CreateExpenseInput,
   ExpenseDto,
-  ListExpensesQuery,
+  ExpenseSortOption,
   ListExpensesResponse,
 } from "@/lib/schemas/expense";
 
@@ -75,7 +75,7 @@ async function requestWithRetry<T>(
 
 type FetchExpensesQuery = {
   category?: string;
-  sort?: "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+  sort?: ExpenseSortOption;
 };
 
 export async function fetchExpenses(

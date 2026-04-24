@@ -18,8 +18,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import type { CategoryDto } from "@/lib/api-client";
+import type { ExpenseSortOption } from "@/lib/schemas/expense";
 
-export type SortOption = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+export type SortOption = ExpenseSortOption;
 
 export type ExpenseFiltersProps = {
   category: string;
@@ -30,7 +31,7 @@ export type ExpenseFiltersProps = {
   onManageCategories: () => void;
 };
 
-const sortOptions: { value: SortOption; label: string; icon: React.ReactNode }[] = [
+const sortOptions: { value: ExpenseSortOption; label: string; icon: React.ReactNode }[] = [
   {
     value: "date_desc",
     label: "Date (Newest)",

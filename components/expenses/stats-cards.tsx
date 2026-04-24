@@ -9,13 +9,17 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, sumDecimals, toDecimal } from "@/lib/money";
 import type { ExpenseDto } from "@/lib/schemas/expense";
 
 export type StatsCardsProps = {
   expenses: ExpenseDto[];
   total: string;
 };
+
+// Money never touches JS `number`: we aggregate in Prisma.Decimal end-to-end so
+// the "This Month" total and the "Top Category" ranking stay byte-exact.
+type Decimal = ReturnType<typeof toDecimal>;
 
 export function StatsCards({ expenses, total }: StatsCardsProps) {
   const today = new Date();
@@ -27,20 +31,25 @@ export function StatsCards({ expenses, total }: StatsCardsProps) {
     return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
   });
 
-  const thisMonthTotal = thisMonthExpenses
-    .reduce((sum, e) => sum + Number(e.amount), 0)
-    .toFixed(2);
+  const thisMonthTotal = sumDecimals(
+    thisMonthExpenses.map((e) => toDecimal(e.amount))
+  ).toFixed(2);
 
   const categories = new Set(expenses.map((e) => e.category));
 
-  const topCategory = expenses.length > 0
-    ? Object.entries(
-        expenses.reduce((acc, e) => {
-          acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
-          return acc;
-        }, {} as Record<string, number>)
-      ).sort((a, b) => b[1] - a[1])[0]
-    : null;
+  const totalsByCategory = new Map<string, Decimal>();
+  for (const e of expenses) {
+    const prev = totalsByCategory.get(e.category);
+    const amount = toDecimal(e.amount);
+    totalsByCategory.set(e.category, prev ? prev.plus(amount) : amount);
+  }
+
+  const topCategory =
+    totalsByCategory.size > 0
+      ? [...totalsByCategory.entries()].sort((a, b) =>
+          b[1].comparedTo(a[1])
+        )[0]
+      : null;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

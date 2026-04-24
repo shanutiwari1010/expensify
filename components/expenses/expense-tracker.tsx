@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,11 +19,8 @@ import { ExpenseList } from "./expense-list";
 import { ExpenseTotal } from "./expense-total";
 import { StatsCards } from "./stats-cards";
 import { CategoryManager } from "./category-manager";
-import {
-  fetchExpenses,
-  FetchError,
-  type CategoryDto,
-} from "@/lib/api-client";
+import type { CategoryDto } from "@/lib/api-client";
+import { getVisibleExpenses } from "@/lib/expense-view";
 import { sumDecimals, toDecimal } from "@/lib/money";
 import type { ExpenseDto, ListExpensesResponse } from "@/lib/schemas/expense";
 
@@ -34,85 +30,47 @@ export type ExpenseTrackerProps = {
   showStats?: boolean;
 };
 
+/**
+ * The tracker holds the full expense list in client state (seeded from the
+ * server on first paint). Category + sort are view state only — we derive
+ * the visible rows with `getVisibleExpenses` (no GET /api/expenses on every
+ * dropdown change). POST still creates the canonical row on the server; we
+ * merge the returned DTO into state.
+ */
 export function ExpenseTracker({
   initialData,
   initialCategories,
   showStats = true,
 }: ExpenseTrackerProps) {
   const [expenses, setExpenses] = useState<ExpenseDto[]>(initialData.data);
-  const [serverTotal, setServerTotal] = useState<string>(initialData.total);
   const [categories, setCategories] = useState<CategoryDto[]>(initialCategories);
   const [category, setCategory] = useState<string>("all");
   const [sort, setSort] = useState<SortOption>("date_desc");
-  const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [suggestedCategoryName, setSuggestedCategoryName] = useState<string | undefined>(
     undefined
   );
 
-  const abortRef = useRef<AbortController | null>(null);
-
-  const refresh = useCallback(
-    async (nextCategory: string, nextSort: SortOption) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      setIsLoading(true);
-      try {
-        const result = await fetchExpenses(
-          {
-            sort: nextSort,
-            category: nextCategory === "all" ? undefined : nextCategory,
-          },
-          controller.signal
-        );
-        if (controller.signal.aborted) return;
-        setExpenses(result.data);
-        setServerTotal(result.total);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        const message =
-          err instanceof FetchError
-            ? err.body?.error?.message ?? err.message
-            : "Could not load expenses.";
-        toast.error(message);
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    },
-    []
+  const grandTotal = useMemo(
+    () => sumDecimals(expenses.map((e) => toDecimal(e.amount))).toFixed(2),
+    [expenses]
   );
 
-  const onCategoryChange = useCallback(
-    (next: string) => {
-      setCategory(next);
-      void refresh(next, sort);
-    },
-    [refresh, sort]
-  );
+  const onCategoryChange = useCallback((next: string) => {
+    setCategory(next);
+  }, []);
 
-  const onSortChange = useCallback(
-    (next: SortOption) => {
-      setSort(next);
-      void refresh(category, next);
-    },
-    [refresh, category]
-  );
+  const onSortChange = useCallback((next: SortOption) => {
+    setSort(next);
+  }, []);
 
   const onCreated = useCallback((created: ExpenseDto) => {
+    setDialogOpen(false);
     setExpenses((prev) => {
       if (prev.some((e) => e.id === created.id)) return prev;
-      const next = [created, ...prev];
-      // Re-sort locally (will be corrected on next fetch)
-      next.sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-        return a.createdAt < b.createdAt ? 1 : -1;
-      });
-      return next;
+      return [...prev, created];
     });
-    setDialogOpen(false);
   }, []);
 
   const onRequestCreateCategory = useCallback((name?: string) => {
@@ -120,10 +78,10 @@ export function ExpenseTracker({
     setCategoryManagerOpen(true);
   }, []);
 
-  const visibleExpenses = useMemo(() => {
-    if (category === "all") return expenses;
-    return expenses.filter((e) => e.category === category);
-  }, [expenses, category]);
+  const visibleExpenses = useMemo(
+    () => getVisibleExpenses(expenses, category, sort),
+    [expenses, category, sort]
+  );
 
   const total = useMemo(() => {
     return sumDecimals(visibleExpenses.map((e) => toDecimal(e.amount))).toFixed(2);
@@ -134,15 +92,11 @@ export function ExpenseTracker({
     const onManageCategories = () => setCategoryManagerOpen(true);
     const onSetCategory = (e: Event) => {
       const ce = e as CustomEvent<{ category?: string }>;
-      const next = ce.detail?.category ?? "all";
-      setCategory(next);
-      void refresh(next, sort);
+      setCategory(ce.detail?.category ?? "all");
     };
     const onSetSort = (e: Event) => {
       const ce = e as CustomEvent<{ sort?: SortOption }>;
-      const next = ce.detail?.sort ?? "date_desc";
-      setSort(next);
-      void refresh(category, next);
+      setSort(ce.detail?.sort ?? "date_desc");
     };
 
     window.addEventListener("expensify:add-expense", onAddExpense);
@@ -151,22 +105,20 @@ export function ExpenseTracker({
     window.addEventListener("expensify:set-sort", onSetSort);
 
     return () => {
-      abortRef.current?.abort();
       window.removeEventListener("expensify:add-expense", onAddExpense);
       window.removeEventListener("expensify:manage-categories", onManageCategories);
       window.removeEventListener("expensify:set-category", onSetCategory);
       window.removeEventListener("expensify:set-sort", onSetSort);
     };
-  }, [refresh, sort, category]);
+  }, []);
 
-  // Refresh categories when manager closes
   const handleCategoriesChange = useCallback(async (newCategories: CategoryDto[]) => {
     setCategories(newCategories);
   }, []);
 
   return (
     <div className="flex flex-col gap-6">
-      {showStats && <StatsCards expenses={expenses} total={serverTotal} />}
+      {showStats && <StatsCards expenses={expenses} total={grandTotal} />}
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -210,7 +162,7 @@ export function ExpenseTracker({
         <CardContent className="flex flex-col gap-4">
           <ExpenseList
             expenses={visibleExpenses}
-            isLoading={isLoading}
+            isLoading={false}
             categories={categories}
           />
           <ExpenseTotal
@@ -221,7 +173,6 @@ export function ExpenseTracker({
         </CardContent>
       </Card>
 
-      {/* Footer with keyboard shortcut hint */}
       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <span>Tip:</span>
         <span>Press</span>

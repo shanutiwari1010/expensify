@@ -26,11 +26,10 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { fetchCategories, type CategoryDto } from "@/lib/api-client";
-
-type SortOption = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+import type { ExpenseSortOption } from "@/lib/schemas/expense";
 
 const sortItems: Array<{
-  value: SortOption;
+  value: ExpenseSortOption;
   label: string;
   icon: React.ReactNode;
 }> = [
