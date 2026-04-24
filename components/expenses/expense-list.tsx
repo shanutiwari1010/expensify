@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2Icon, MoreHorizontalIcon, PencilIcon, ReceiptTextIcon, Trash2Icon } from "lucide-react";
+import {
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  ReceiptTextIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,36 +43,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { useDisplayCurrency } from "@/providers/currency-preference-provider";
+import {
+  formatExpenseRelativeDate,
+  formatExpenseTableDate,
+  hexToRgba,
+} from "@/lib/expense-list-utils";
 import type { ExpenseDto } from "@/lib/schemas/expense";
 import type { CategoryDto } from "@/lib/api-client";
-
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00Z");
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
-}
-
-function formatRelativeDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00Z");
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Yesterday";
-  if (diff < 7) return `${diff} days ago`;
-  return formatDate(iso);
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 export type ExpenseListProps = {
   expenses: ExpenseDto[];
@@ -82,7 +66,7 @@ export function ExpenseList({
   categories,
   onEdit,
   onDelete,
-}: ExpenseListProps) {
+}: Readonly<ExpenseListProps>) {
   const { formatMoney: fmt } = useDisplayCurrency();
   const categoryMap = new Map(categories.map((c) => [c.name, c]));
   const [pendingDelete, setPendingDelete] = useState<ExpenseDto | null>(null);
@@ -103,7 +87,10 @@ export function ExpenseList({
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 rounded-lg border p-4">
+          <div
+            key={`loading-${i + 1}`}
+            className="flex items-center gap-4 rounded-lg border p-4"
+          >
             <Skeleton className="h-10 w-10 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-1/3" />
@@ -139,10 +126,12 @@ export function ExpenseList({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="w-[130px] min-w-[7rem]">Date</TableHead>
+              <TableHead className="w-[130px] min-w-28">Date</TableHead>
               <TableHead>Description</TableHead>
-              <TableHead className="w-[140px] min-w-[7rem]">Category</TableHead>
-              <TableHead className="w-[120px] min-w-[5rem] text-right">Amount</TableHead>
+              <TableHead className="w-[140px] min-w-28">Category</TableHead>
+              <TableHead className="w-[120px] min-w-20 text-right">
+                Amount
+              </TableHead>
               <TableHead className="w-[56px] p-2 text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -151,16 +140,20 @@ export function ExpenseList({
           <TableBody>
             {expenses.map((e) => {
               const cat = categoryMap.get(e.category);
-              const bgColor = cat?.color ? hexToRgba(cat.color, 0.15) : undefined;
+              const bgColor = cat?.color
+                ? hexToRgba(cat.color, 0.15)
+                : undefined;
               const textColor = cat?.color ?? "#6B7280";
 
               return (
                 <TableRow key={e.id} className="group">
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{formatRelativeDate(e.date)}</span>
+                      <span className="font-medium">
+                        {formatExpenseRelativeDate(e.date)}
+                      </span>
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(e.date)}
+                        {formatExpenseTableDate(e.date)}
                       </span>
                     </div>
                   </TableCell>
@@ -235,8 +228,8 @@ export function ExpenseList({
             <AlertDialogDescription>
               {pendingDelete ? (
                 <>
-                  This will permanently remove &quot;{pendingDelete.description}&quot; (
-                  {fmt(pendingDelete.amount)}). This cannot be undone.
+                  This will permanently remove &quot;{pendingDelete.description}
+                  &quot; ({fmt(pendingDelete.amount)}). This cannot be undone.
                 </>
               ) : null}
             </AlertDialogDescription>
@@ -248,7 +241,9 @@ export function ExpenseList({
               disabled={deleteBusy}
               onClick={() => void handleConfirmDelete()}
             >
-              {deleteBusy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {deleteBusy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
               Delete
             </Button>
           </AlertDialogFooter>

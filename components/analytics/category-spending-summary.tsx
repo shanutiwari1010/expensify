@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { TooltipContentProps } from "recharts";
 import {
   Bar,
   BarChart,
@@ -13,9 +14,15 @@ import {
 } from "recharts";
 import { BarChart3Icon, PieChartIcon, ReceiptIcon } from "lucide-react";
 
-import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { useDisplayCurrency } from "@/providers/currency-preference-provider";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -49,11 +56,32 @@ function shareBar(percent: number, color: string): React.ReactNode {
 
 type ChartPoint = { name: string; value: number; color: string };
 
-export function CategorySpendingSummary({ categories, expenses }: CategorySpendingSummaryProps) {
+const CategorySpendingBarTooltip = (
+  props: TooltipContentProps,
+): React.ReactNode => {
+  const { formatMoney: fmt } = useDisplayCurrency();
+  const { active, payload, label } = props;
+  if (!active || !payload?.length) return null;
+  const p = payload[0]?.payload as ChartPoint | undefined;
+  if (p == null) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-sm text-popover-foreground shadow-md">
+      <p className="font-medium">{label}</p>
+      <p className="font-mono text-muted-foreground tabular-nums">
+        {fmt(String(p.value))}
+      </p>
+    </div>
+  );
+};
+
+export function CategorySpendingSummary({
+  categories,
+  expenses,
+}: Readonly<CategorySpendingSummaryProps>) {
   const { formatMoney: fmt, currency } = useDisplayCurrency();
   const { grandTotal, rows } = React.useMemo(
     () => buildCategorySpendingSummary(categories, expenses),
-    [categories, expenses]
+    [categories, expenses],
   );
 
   const withSpend = rows.filter((r) => r.count > 0);
@@ -68,7 +96,10 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
       .sort((a, b) => b.value - a.value);
   }, [rows]);
 
-  const chartKey = React.useMemo(() => [currency, chartData.length, grandTotal].join(), [chartData.length, currency, grandTotal]);
+  const chartKey = React.useMemo(
+    () => [currency, chartData.length, grandTotal].join(),
+    [chartData.length, currency, grandTotal],
+  );
   const chartHeight = Math.max(200, Math.min(480, withSpend.length * 44 + 32));
 
   return (
@@ -76,24 +107,33 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
       <div className="grid gap-4 sm:grid-cols-3">
         <Card size="sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">All transactions</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              All transactions
+            </CardTitle>
             <ReceiptIcon className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tabular-nums">{fmt(grandTotal)}</p>
             <p className="text-xs text-muted-foreground">
-              {expenses.length} total · {rows.filter((r) => r.count > 0).length} categories with spend
+              {expenses.length} total · {rows.filter((r) => r.count > 0).length}{" "}
+              categories with spend
             </p>
           </CardContent>
         </Card>
         <Card size="sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories in app</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Categories in app
+            </CardTitle>
             <PieChartIcon className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold tabular-nums">{categories.length}</p>
-            <p className="text-xs text-muted-foreground">Created in the category list</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {categories.length}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Created in the category list
+            </p>
           </CardContent>
         </Card>
         <Card size="sm">
@@ -108,7 +148,8 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
                   {withSpend[0].name}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {fmt(withSpend[0].total)} · {withSpend[0].sharePercent}% of total
+                  {fmt(withSpend[0].total)} · {withSpend[0].sharePercent}% of
+                  total
                 </p>
               </>
             ) : (
@@ -121,8 +162,8 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
       {categories.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Add categories from the app to see a structured breakdown. You can create categories
-            when logging expenses.
+            Add categories from the app to see a structured breakdown. You can
+            create categories when logging expenses.
           </CardContent>
         </Card>
       ) : null}
@@ -132,12 +173,15 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
           <CardHeader>
             <CardTitle>Spending by category</CardTitle>
             <CardDescription>
-              Every category you have, with totals and what fraction of your spending it represents.
+              Every category you have, with totals and what fraction of your
+              spending it represents.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No data.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No data.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -151,7 +195,10 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
                   </TableHeader>
                   <TableBody>
                     {rows.map((r: CategorySpendingRow) => (
-                      <TableRow key={r.name} className={r.count === 0 ? "opacity-60" : undefined}>
+                      <TableRow
+                        key={r.name}
+                        className={r.count === 0 ? "opacity-60" : undefined}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span
@@ -193,7 +240,8 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
           <CardHeader>
             <CardTitle>Visual breakdown</CardTitle>
             <CardDescription>
-              Horizontal bars sized by amount ({currency}). Categories with no spend are omitted.
+              Horizontal bars sized by amount ({currency}). Categories with no
+              spend are omitted.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -206,13 +254,20 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
                 className="w-full text-xs [&_.recharts-text]:fill-muted-foreground"
                 key={chartKey}
               >
-                <ResponsiveContainer width="100%" height={chartHeight} debounce={50}>
+                <ResponsiveContainer
+                  width="100%"
+                  height={chartHeight}
+                  debounce={50}
+                >
                   <BarChart
                     layout="vertical"
                     data={chartData}
                     margin={{ top: 8, right: 12, left: 4, bottom: 8 }}
                   >
-                    <CartesianGrid horizontal={false} stroke="hsl(var(--border) / 0.5)" />
+                    <CartesianGrid
+                      horizontal={false}
+                      stroke="hsl(var(--border) / 0.5)"
+                    />
                     <XAxis
                       type="number"
                       tickFormatter={(v) => fmt(String(v))}
@@ -225,23 +280,12 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(v) =>
-                        String(v).length > 20 ? `${String(v).slice(0, 19)}…` : String(v)
+                        String(v).length > 20
+                          ? `${String(v).slice(0, 19)}…`
+                          : String(v)
                       }
                     />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const p = payload[0]!.payload as ChartPoint;
-                        return (
-                          <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-sm text-popover-foreground shadow-md">
-                            <p className="font-medium">{label}</p>
-                            <p className="font-mono text-muted-foreground tabular-nums">
-                              {fmt(String(p.value))}
-                            </p>
-                          </div>
-                        );
-                      }}
-                    />
+                    <Tooltip content={CategorySpendingBarTooltip} />
                     <Bar
                       dataKey="value"
                       maxBarSize={32}
@@ -249,7 +293,11 @@ export function CategorySpendingSummary({ categories, expenses }: CategorySpendi
                       isAnimationActive={false}
                     >
                       {chartData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} fillOpacity={0.88} />
+                        <Cell
+                          key={i + entry.name}
+                          fill={entry.color}
+                          fillOpacity={0.88}
+                        />
                       ))}
                     </Bar>
                   </BarChart>

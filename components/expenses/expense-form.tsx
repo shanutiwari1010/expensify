@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { CheckIcon, Loader2Icon, PlusIcon } from "lucide-react";
 
-import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { useDisplayCurrency } from "@/providers/currency-preference-provider";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -62,7 +62,7 @@ const emptyDefaults: CreateExpenseInput = {
 function useIdempotencyKey() {
   const ref = useRef<string | null>(null);
   const getKey = useCallback(() => {
-    if (ref.current === null) ref.current = crypto.randomUUID();
+    ref.current ??= crypto.randomUUID();
     return ref.current;
   }, []);
   const reset = useCallback(() => {
@@ -74,8 +74,8 @@ function useIdempotencyKey() {
 export type ExpenseFormProps = {
   mode?: "create" | "edit";
   /** Required when `mode` is `edit` */
-  expense?: ExpenseDto;
-  categories: CategoryDto[];
+  expense?: Readonly<ExpenseDto>;
+  categories: Readonly<CategoryDto>[];
   onRequestCreateCategory: (suggestedName?: string) => void;
   onSuccess: (expense: ExpenseDto) => void;
   onCancel?: () => void;
@@ -88,19 +88,24 @@ export function ExpenseForm({
   onRequestCreateCategory,
   onSuccess,
   onCancel,
-}: ExpenseFormProps) {
+}: Readonly<ExpenseFormProps>) {
   const { currency } = useDisplayCurrency();
   const amountSymbol = getCurrencyDisplaySymbol(currency);
   const formId = useId();
   const { getKey, reset: rollIdempotencyKey } = useIdempotencyKey();
 
-  const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } =
-    useForm<CreateExpenseInput>({
-      resolver: zodResolver(createExpenseSchema),
-      defaultValues:
-        mode === "edit" && expense ? toFormValues(expense) : emptyDefaults,
-      mode: "onBlur",
-    });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateExpenseInput>({
+    resolver: zodResolver(createExpenseSchema),
+    defaultValues:
+      mode === "edit" && expense ? toFormValues(expense) : emptyDefaults,
+    mode: "onBlur",
+  });
 
   useEffect(() => {
     if (mode === "edit" && expense) {
@@ -116,8 +121,11 @@ export function ExpenseForm({
         toast.success("Transaction updated.");
       } catch (err) {
         const serverMessage =
-          err instanceof FetchError ? err.body?.error?.message ?? err.message : undefined;
-        const message = serverMessage ?? "Could not update the expense. Please try again.";
+          err instanceof FetchError
+            ? (err.body?.error?.message ?? err.message)
+            : undefined;
+        const message =
+          serverMessage ?? "Could not update the expense. Please try again.";
         toast.error(message);
         if (serverMessage?.includes("doesn't exist")) {
           onRequestCreateCategory(values.category);
@@ -135,8 +143,11 @@ export function ExpenseForm({
       rollIdempotencyKey();
     } catch (err) {
       const serverMessage =
-        err instanceof FetchError ? err.body?.error?.message ?? err.message : undefined;
-      const message = serverMessage ?? "Could not save the expense. Please try again.";
+        err instanceof FetchError
+          ? (err.body?.error?.message ?? err.message)
+          : undefined;
+      const message =
+        serverMessage ?? "Could not save the expense. Please try again.";
       toast.error(message);
       if (serverMessage?.includes("doesn't exist")) {
         onRequestCreateCategory(values.category);
@@ -146,12 +157,38 @@ export function ExpenseForm({
 
   const isEdit = mode === "edit";
 
+  const submitButtonContent = useMemo(() => {
+    if (isSubmitting) {
+      return (
+        <>
+          <Loader2Icon className="size-4 animate-spin" />
+          Saving...
+        </>
+      );
+    }
+    if (isEdit) {
+      return (
+        <>
+          <CheckIcon className="size-4" />
+          Save changes
+        </>
+      );
+    }
+    return (
+      <>
+        <PlusIcon className="size-4" />
+        Add Expense
+      </>
+    );
+  }, [isSubmitting, isEdit]);
+
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <FieldGroup className="gap-4">
         {isEdit ? (
           <p className="text-sm text-muted-foreground">
-            Re-categorize or fix amount and description. Changes apply after you save.
+            Re-categorize or fix amount and description. Changes apply after you
+            save.
           </p>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -233,7 +270,9 @@ export function ExpenseForm({
                 </>
               )}
             />
-            <FieldError errors={errors.category ? [errors.category] : undefined} />
+            <FieldError
+              errors={errors.category ? [errors.category] : undefined}
+            />
           </Field>
         </div>
 
@@ -265,7 +304,12 @@ export function ExpenseForm({
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           {isEdit && onCancel ? (
-            <Button type="button" variant="outline" onClick={onCancel} className="sm:mr-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              className="sm:mr-auto"
+            >
               Cancel
             </Button>
           ) : null}
@@ -275,22 +319,7 @@ export function ExpenseForm({
             className="w-full gap-2 sm:w-auto"
             size="lg"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2Icon className="size-4 animate-spin" />
-                Saving...
-              </>
-            ) : isEdit ? (
-              <>
-                <CheckIcon className="size-4" />
-                Save changes
-              </>
-            ) : (
-              <>
-                <PlusIcon className="size-4" />
-                Add Expense
-              </>
-            )}
+            {submitButtonContent}
           </Button>
         </div>
       </FieldGroup>

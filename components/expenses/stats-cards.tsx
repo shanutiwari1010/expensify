@@ -9,7 +9,7 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { useDisplayCurrency } from "@/providers/currency-preference-provider";
 import { sumDecimals, toDecimal } from "@/lib/money";
 import type { ExpenseDto } from "@/lib/schemas/expense";
 

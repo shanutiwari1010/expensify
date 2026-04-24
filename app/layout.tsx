@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { CommandPalette } from "@/components/layout/command-palette";
-import { CurrencyPreferenceProvider } from "@/components/providers/currency-preference-provider";
+import { CurrencyPreferenceProvider } from "@/providers/currency-preference-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 

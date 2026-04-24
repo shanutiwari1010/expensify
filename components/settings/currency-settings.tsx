@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { CoinsIcon } from "lucide-react";
 
-import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
+import { useDisplayCurrency } from "@/providers/currency-preference-provider";
 import { SUPPORTED_CURRENCIES } from "@/lib/currencies";
 import {
   Field,
