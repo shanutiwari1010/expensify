@@ -50,7 +50,10 @@ async function requestWithRetry<T>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(input, init);
-      if (res.ok) return (await res.json()) as T;
+      if (res.ok) {
+        if (res.status === 204) return undefined as T;
+        return (await res.json()) as T;
+      }
 
       const body = await parseJsonSafe<ApiErrorBody>(res);
       if (res.status >= 400 && res.status < 500) {
@@ -100,6 +103,23 @@ export async function createExpenseRequest(
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify(input),
+  });
+}
+
+export async function updateExpenseRequest(
+  id: string,
+  input: CreateExpenseInput
+): Promise<ExpenseDto> {
+  return requestWithRetry<ExpenseDto>(`/api/expenses/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteExpenseRequest(id: string): Promise<void> {
+  await requestWithRetry<void>(`/api/expenses/${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
 }
 

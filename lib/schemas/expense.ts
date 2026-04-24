@@ -38,6 +38,10 @@ export const createExpenseSchema = z.object({
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
+// Same field requirements as create — PATCH body replaces the full row in one shot.
+export const updateExpenseSchema = createExpenseSchema;
+export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
+
 /** Shared with API, client view logic, and command palette — one source of truth. */
 export const EXPENSE_SORT_OPTIONS = [
   "date_desc",

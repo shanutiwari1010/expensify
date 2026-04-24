@@ -10,6 +10,10 @@ export function jsonCreated<T extends Json>(data: T, init?: ResponseInit) {
   return Response.json(data, { status: 201, ...init });
 }
 
+export function jsonNoContent(init?: ResponseInit) {
+  return new Response(null, { status: 204, ...init });
+}
+
 export function jsonError(err: ApiError) {
   return Response.json(
     { error: { code: err.code, message: err.message, details: err.details } },
