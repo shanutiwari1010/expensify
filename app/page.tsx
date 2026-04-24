@@ -1,12 +1,42 @@
-export default function Home() {
+import { Header } from "@/components/layout/header";
+import { ExpenseTracker } from "@/components/expenses/expense-tracker";
+import { listExpenses } from "@/lib/services/expenses";
+import { listCategories } from "@/lib/services/categories";
+import type { ListExpensesResponse } from "@/lib/schemas/expense";
+
+export const dynamic = "force-dynamic";
+
+async function getInitialData(): Promise<{
+  expenses: ListExpensesResponse;
+  categories: Awaited<ReturnType<typeof listCategories>>;
+}> {
+  try {
+    const [expenses, categories] = await Promise.all([
+      listExpenses({ sort: "date_desc" }),
+      listCategories(),
+    ]);
+    return { expenses, categories };
+  } catch (err) {
+    console.error("[page] failed to seed initial data", err);
+    return {
+      expenses: { data: [], total: "0.00" },
+      categories: [],
+    };
+  }
+}
+
+export default async function DashboardPage() {
+  const { expenses, categories } = await getInitialData();
+
   return (
-    <main className="flex min-h-svh items-center justify-center p-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Expensify</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          A small, production-minded personal finance tracker.
-        </p>
+    <>
+      <Header
+        title="Dashboard"
+        description="Overview of your personal finances"
+      />
+      <div className="flex-1 space-y-6 p-6">
+        <ExpenseTracker initialData={expenses} initialCategories={categories} />
       </div>
-    </main>
+    </>
   );
 }
