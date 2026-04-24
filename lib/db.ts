@@ -20,7 +20,7 @@ function createClient() {
 // causing runtime crashes. We detect that case and recreate the client once.
 const cached = globalForPrisma.prisma ?? createClient();
 export const prisma =
-  process.env.NODE_ENV !== "production" && !(cached as any).category
+  process.env.NODE_ENV !== "production" && !cached?.category
     ? createClient()
     : cached;
 

@@ -17,7 +17,7 @@ export class ApiError extends Error {
     code: ApiErrorCode,
     status: number,
     message: string,
-    details?: unknown
+    details?: unknown,
   ) {
     super(message);
     this.code = code;
