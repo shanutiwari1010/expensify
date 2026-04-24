@@ -1,43 +1,37 @@
-import { BarChart3Icon } from "lucide-react";
-
+import { CategorySpendingSummary } from "@/components/analytics/category-spending-summary";
 import { Header } from "@/components/layout/header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { listCategories } from "@/lib/services/categories";
+import { listExpenses } from "@/lib/services/expenses";
 
-export default function AnalyticsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AnalyticsPage() {
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
+  let expenses: Awaited<ReturnType<typeof listExpenses>> = {
+    data: [],
+    total: "0.00",
+  };
+
+  try {
+    [expenses, categories] = await Promise.all([
+      listExpenses({ sort: "date_desc" }),
+      listCategories(),
+    ]);
+  } catch (err) {
+    console.error("[analytics] failed to load data", err);
+  }
+
   return (
     <>
       <Header
         title="Analytics"
-        description="Visualize your spending patterns"
+        description="Category breakdown and how your spending splits across labels"
       />
       <div className="flex-1 space-y-6 p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Spending Analytics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Empty className="py-12">
-              <EmptyHeader>
-                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-                  <BarChart3Icon className="size-6 text-muted-foreground" />
-                </div>
-                <EmptyTitle>Coming Soon</EmptyTitle>
-                <EmptyDescription>
-                  Charts and insights about your spending habits will be available here.
-                  Track expenses on the Dashboard to see analytics.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent />
-            </Empty>
-          </CardContent>
-        </Card>
+        <CategorySpendingSummary
+          categories={categories}
+          expenses={expenses.data}
+        />
       </div>
     </>
   );
