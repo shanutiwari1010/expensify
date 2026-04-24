@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { PlusIcon, TrashIcon, Loader2Icon } from "lucide-react";
 
@@ -49,19 +49,11 @@ export function CategoryManager({
   categories,
   onCategoriesChange,
   suggestedName,
-}: CategoryManagerProps) {
-  const [newName, setNewName] = useState("");
+}: Readonly<CategoryManagerProps>) {
+  const [newName, setNewName] = useState(() => suggestedName?.trim() ?? "");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    if (suggestedName && !newName) {
-      setNewName(suggestedName);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, suggestedName]);
 
   const handleCreate = async () => {
     if (!newName.trim()) {
@@ -77,12 +69,14 @@ export function CategoryManager({
       });
       onCategoriesChange([...categories, created]);
       setNewName("");
-      setNewColor(PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+      setNewColor(
+        PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)],
+      );
       toast.success(`Category "${created.name}" created`);
     } catch (err) {
       const message =
         err instanceof FetchError
-          ? err.body?.error?.message ?? err.message
+          ? (err.body?.error?.message ?? err.message)
           : "Could not create category";
       toast.error(message);
     } finally {
@@ -99,7 +93,7 @@ export function CategoryManager({
     } catch (err) {
       const message =
         err instanceof FetchError
-          ? err.body?.error?.message ?? err.message
+          ? (err.body?.error?.message ?? err.message)
           : "Could not delete category";
       toast.error(message);
     } finally {
@@ -148,7 +142,9 @@ export function CategoryManager({
                   type="button"
                   onClick={() => setNewColor(color)}
                   className={`size-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                    newColor === color ? "border-foreground" : "border-transparent"
+                    newColor === color
+                      ? "border-foreground"
+                      : "border-transparent"
                   }`}
                   style={{ backgroundColor: color }}
                 />

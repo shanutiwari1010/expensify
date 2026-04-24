@@ -13,15 +13,9 @@ import {
 } from "@/components/ui/select";
 import {
   EXPENSE_PAGE_SIZE_OPTIONS,
+  expensePaginationRangeLabel,
   type ExpensePageSize,
 } from "@/lib/expense-view";
-
-function rangeLabel(page: number, pageSize: number, total: number): string {
-  if (total === 0) return "0 of 0";
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, total);
-  return `${from}–${to} of ${total}`;
-}
 
 export type ExpenseTablePaginationProps = {
   page: number;
@@ -37,7 +31,7 @@ export function ExpenseTablePagination({
   totalItems,
   onPageChange,
   onPageSizeChange,
-}: ExpenseTablePaginationProps) {
+}: Readonly<ExpenseTablePaginationProps>) {
   const totalPages = totalItems <= 0 ? 1 : Math.ceil(totalItems / pageSize);
   const canPrev = page > 1;
   const canNext = page < totalPages;
@@ -47,19 +41,25 @@ export function ExpenseTablePagination({
   }
 
   return (
-    <div
+    <nav
       className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
       role="navigation"
       aria-label="Expense table pagination"
     >
       <p className="text-sm text-muted-foreground" aria-live="polite">
-        Showing <span className="font-medium text-foreground">{rangeLabel(page, pageSize, totalItems)}</span>{" "}
+        Showing{" "}
+        <span className="font-medium text-foreground">
+          {expensePaginationRangeLabel(page, pageSize, totalItems)}
+        </span>{" "}
         transactions
       </p>
 
       <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
-          <Label htmlFor="expense-page-size" className="whitespace-nowrap text-sm text-muted-foreground">
+          <Label
+            htmlFor="expense-page-size"
+            className="whitespace-nowrap text-sm text-muted-foreground"
+          >
             Rows
           </Label>
           <Select
@@ -69,7 +69,7 @@ export function ExpenseTablePagination({
               onPageSizeChange(Number(v) as ExpensePageSize);
             }}
           >
-            <SelectTrigger id="expense-page-size" className="h-8 w-[4.5rem]">
+            <SelectTrigger id="expense-page-size" className="h-8 w-18">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -93,7 +93,7 @@ export function ExpenseTablePagination({
           >
             <ChevronLeftIcon className="size-4" />
           </Button>
-          <span className="min-w-[5.5rem] px-2 text-center text-sm tabular-nums text-muted-foreground">
+          <span className="min-w-22 px-2 text-center text-sm tabular-nums text-muted-foreground">
             Page {page} of {totalPages}
           </span>
           <Button
@@ -108,6 +108,6 @@ export function ExpenseTablePagination({
           </Button>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }
