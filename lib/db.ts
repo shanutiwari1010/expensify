@@ -7,11 +7,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createClient() {
+  return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
+}
+
+// In dev, PrismaClient is cached on `globalThis` to avoid exhausting Postgres
+// connections during Fast Refresh. One sharp edge: if Prisma Client is
+// regenerated while the dev server is running (e.g. after adding models),
+// the old cached client may be missing new model delegates (like `category`),
+// causing runtime crashes. We detect that case and recreate the client once.
+const cached = globalForPrisma.prisma ?? createClient();
+export const prisma =
+  process.env.NODE_ENV !== "production" && !(cached as any).category
+    ? createClient()
+    : cached;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
