@@ -28,6 +28,13 @@ import {
 import { fetchCategories, type CategoryDto } from "@/lib/api-client";
 import type { ExpenseSortOption } from "@/lib/schemas/expense";
 
+const nav = [
+  { label: "Dashboard", href: "/", icon: <LayoutDashboardIcon /> },
+  { label: "Expenses", href: "/expenses", icon: <ReceiptTextIcon /> },
+  { label: "Analytics", href: "/analytics", icon: <PieChartIcon /> },
+  { label: "Settings", href: "/settings", icon: <SettingsIcon /> },
+];
+
 const sortItems: Array<{
   value: ExpenseSortOption;
   label: string;
@@ -44,7 +51,7 @@ const sortItems: Array<{
 ];
 
 function dispatch(name: string, detail?: unknown) {
-  window.dispatchEvent(new CustomEvent(name, { detail }));
+  globalThis.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
 export function CommandPalette() {
@@ -65,12 +72,7 @@ export function CommandPalette() {
       if (isTyping) return;
 
       // One key: A — use code so a vs A (shift) both work; block with Ctrl/Meta/Alt
-      if (
-        e.code === "KeyE" &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey
-      ) {
+      if (e.code === "KeyE" && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setOpen(false);
         dispatch("expensify:add-expense");
@@ -109,13 +111,6 @@ export function CommandPalette() {
     setOpen(false);
     router.push(href);
   };
-
-  const nav = [
-    { label: "Dashboard", href: "/", icon: <LayoutDashboardIcon /> },
-    { label: "Expenses", href: "/expenses", icon: <ReceiptTextIcon /> },
-    { label: "Analytics", href: "/analytics", icon: <PieChartIcon /> },
-    { label: "Settings", href: "/settings", icon: <SettingsIcon /> },
-  ];
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Command Palette">
