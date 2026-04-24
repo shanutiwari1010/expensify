@@ -1,0 +1,58 @@
+// Prisma schema for Expensify.
+//
+// Money is stored as Decimal(14, 2) — never Float. See AGENTS.md §5.
+// `Expense.date` is a calendar date (no timezone); `createdAt` is a full
+// timestamp used for audit/sorting ties.
+//
+// The `IdempotencyKey` table lets `POST /api/expenses` safely dedupe
+// client-retried requests (double-click, refresh-retry, flaky network).
+//
+// `Category` table stores both default and user-added categories.
+// Expense.category is a string that references Category.name (soft FK for flexibility).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique @db.VarChar(64)
+  color     String   @db.VarChar(7) // hex color like #FF5733
+  icon      String?  @db.VarChar(32) // optional lucide icon name
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("categories")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  amount      Decimal  @db.Decimal(14, 2)
+  category    String   @db.VarChar(64) // references Category.name
+  description String   @db.VarChar(500)
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([category])
+  @@index([date(sort: Desc)])
+  @@map("expenses")
+}
+
+model IdempotencyKey {
+  key        String   @id @db.VarChar(128)
+  resourceId String   @map("resource_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  expense Expense @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
