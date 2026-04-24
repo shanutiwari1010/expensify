@@ -1,3 +1,5 @@
+import { API_REQUEST_RETRY_DEFAULTS, type ApiRequestRetryInput } from "@/config/api";
+import { HTTP_CONTENT_TYPE_JSON } from "@/constants/http";
 import type {
   CreateExpenseInput,
   ExpenseDto,
@@ -44,8 +46,12 @@ function sleep(ms: number) {
 async function requestWithRetry<T>(
   input: RequestInfo | URL,
   init: RequestInit,
-  { retries = 2, baseDelayMs = 300 }: { retries?: number; baseDelayMs?: number } = {}
+  retryOptions?: ApiRequestRetryInput,
 ): Promise<T> {
+  const { retries, baseDelayMs } = {
+    ...API_REQUEST_RETRY_DEFAULTS,
+    ...retryOptions,
+  };
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -57,9 +63,17 @@ async function requestWithRetry<T>(
 
       const body = await parseJsonSafe<ApiErrorBody>(res);
       if (res.status >= 400 && res.status < 500) {
-        throw new FetchError(res.status, body?.error?.message ?? res.statusText, body);
+        throw new FetchError(
+          res.status,
+          body?.error?.message ?? res.statusText,
+          body,
+        );
       }
-      lastErr = new FetchError(res.status, body?.error?.message ?? res.statusText, body);
+      lastErr = new FetchError(
+        res.status,
+        body?.error?.message ?? res.statusText,
+        body,
+      );
     } catch (err) {
       lastErr = err;
       // Non-retryable user error — bubble immediately.
@@ -81,9 +95,13 @@ type FetchExpensesQuery = {
   sort?: ExpenseSortOption;
 };
 
+const DEFAULT_FETCH_EXPENSES_QUERY: FetchExpensesQuery = {
+  sort: "date_desc",
+};
+
 export async function fetchExpenses(
-  query: FetchExpensesQuery = { sort: "date_desc" },
-  signal?: AbortSignal
+  query: FetchExpensesQuery = DEFAULT_FETCH_EXPENSES_QUERY,
+  signal?: AbortSignal,
 ): Promise<ListExpensesResponse> {
   const params = new URLSearchParams();
   if (query.category) params.set("category", query.category);
@@ -94,12 +112,12 @@ export async function fetchExpenses(
 
 export async function createExpenseRequest(
   input: CreateExpenseInput,
-  idempotencyKey: string
+  idempotencyKey: string,
 ): Promise<ExpenseDto> {
   return requestWithRetry<ExpenseDto>("/api/expenses", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": HTTP_CONTENT_TYPE_JSON,
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify(input),
@@ -108,13 +126,16 @@ export async function createExpenseRequest(
 
 export async function updateExpenseRequest(
   id: string,
-  input: CreateExpenseInput
+  input: CreateExpenseInput,
 ): Promise<ExpenseDto> {
-  return requestWithRetry<ExpenseDto>(`/api/expenses/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  return requestWithRetry<ExpenseDto>(
+    `/api/expenses/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": HTTP_CONTENT_TYPE_JSON },
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export async function deleteExpenseRequest(id: string): Promise<void> {
@@ -133,7 +154,7 @@ export type CategoryDto = {
 };
 
 export async function fetchCategories(
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<{ data: CategoryDto[] }> {
   return requestWithRetry<{ data: CategoryDto[] }>("/api/categories", {
     method: "GET",
@@ -148,7 +169,7 @@ export async function createCategoryRequest(input: {
 }): Promise<CategoryDto> {
   return requestWithRetry<CategoryDto>("/api/categories", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": HTTP_CONTENT_TYPE_JSON },
     body: JSON.stringify(input),
   });
 }
