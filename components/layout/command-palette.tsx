@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   PlusIcon,
@@ -53,14 +53,8 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
 
-  const isMac = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    return navigator.platform.toLowerCase().includes("mac");
-  }, []);
-
-  // Keyboard shortcuts:
-  // - Cmd/Ctrl+Shift+P: reliable fallback (avoids browser address-bar conflicts)
-  // - Cmd/Ctrl+K: attempt to open (may be intercepted by the browser)
+  // - A (physical key, no modifiers): add expense when not in an input/textarea
+  // - Cmd/Ctrl+K / Cmd/Ctrl+Shift+P: open this palette
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -70,22 +64,35 @@ export function CommandPalette() {
         target?.isContentEditable;
       if (isTyping) return;
 
+      // One key: A — use code so a vs A (shift) both work; block with Ctrl/Meta/Alt
+      if (
+        e.code === "KeyE" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        setOpen(false);
+        dispatch("expensify:add-expense");
+        return;
+      }
+
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
       const key = e.key.toLowerCase();
-      if (key === "k") {
-        // Best effort; some browsers hijack Cmd+K.
+      if (key === "k" && !e.shiftKey) {
         e.preventDefault();
         setOpen(true);
+        return;
       }
       if (key === "p" && e.shiftKey) {
         e.preventDefault();
         setOpen(true);
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => globalThis.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Load categories when palette opens.
@@ -126,9 +133,7 @@ export function CommandPalette() {
             >
               <PlusIcon />
               Add expense
-              <CommandShortcut>
-                {isMac ? "⌘⇧P" : "Ctrl+Shift+P"}
-              </CommandShortcut>
+              <CommandShortcut>E</CommandShortcut>
             </CommandItem>
 
             <CommandItem

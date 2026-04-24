@@ -1,8 +1,10 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import { useState } from "react";
+import { Loader2Icon, MoreHorizontalIcon, PencilIcon, ReceiptTextIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -19,7 +21,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatMoney } from "@/lib/money";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
 import type { ExpenseDto } from "@/lib/schemas/expense";
 import type { CategoryDto } from "@/lib/api-client";
 
@@ -54,10 +72,32 @@ export type ExpenseListProps = {
   expenses: ExpenseDto[];
   isLoading: boolean;
   categories: CategoryDto[];
+  onEdit: (e: ExpenseDto) => void;
+  onDelete: (e: ExpenseDto) => Promise<void>;
 };
 
-export function ExpenseList({ expenses, isLoading, categories }: ExpenseListProps) {
+export function ExpenseList({
+  expenses,
+  isLoading,
+  categories,
+  onEdit,
+  onDelete,
+}: ExpenseListProps) {
+  const { formatMoney: fmt } = useDisplayCurrency();
   const categoryMap = new Map(categories.map((c) => [c.name, c]));
+  const [pendingDelete, setPendingDelete] = useState<ExpenseDto | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleteBusy(true);
+    try {
+      await onDelete(pendingDelete);
+      setPendingDelete(null);
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   if (isLoading && expenses.length === 0) {
     return (
@@ -94,61 +134,126 @@ export function ExpenseList({ expenses, isLoading, categories }: ExpenseListProp
   }
 
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
-            <TableHead className="w-[140px]">Date</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead className="w-[140px]">Category</TableHead>
-            <TableHead className="w-[140px] text-right">Amount</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {expenses.map((e) => {
-            const cat = categoryMap.get(e.category);
-            const bgColor = cat?.color ? hexToRgba(cat.color, 0.15) : undefined;
-            const textColor = cat?.color ?? "#6B7280";
+    <>
+      <div className="overflow-x-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="w-[130px] min-w-[7rem]">Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="w-[140px] min-w-[7rem]">Category</TableHead>
+              <TableHead className="w-[120px] min-w-[5rem] text-right">Amount</TableHead>
+              <TableHead className="w-[56px] p-2 text-right">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {expenses.map((e) => {
+              const cat = categoryMap.get(e.category);
+              const bgColor = cat?.color ? hexToRgba(cat.color, 0.15) : undefined;
+              const textColor = cat?.color ?? "#6B7280";
 
-            return (
-              <TableRow key={e.id} className="group">
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{formatRelativeDate(e.date)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(e.date)}
+              return (
+                <TableRow key={e.id} className="group">
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{formatRelativeDate(e.date)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(e.date)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{e.description}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className="border-0 font-medium"
+                      style={{
+                        backgroundColor: bgColor,
+                        color: textColor,
+                      }}
+                    >
+                      <span
+                        className="mr-1.5 size-2 rounded-full"
+                        style={{ backgroundColor: textColor }}
+                      />
+                      {e.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="font-mono text-base font-semibold tabular-nums">
+                      {fmt(e.amount)}
                     </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="font-medium">{e.description}</span>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="secondary"
-                    className="border-0 font-medium"
-                    style={{
-                      backgroundColor: bgColor,
-                      color: textColor,
-                    }}
-                  >
-                    <span
-                      className="mr-1.5 size-2 rounded-full"
-                      style={{ backgroundColor: textColor }}
-                    />
-                    {e.category}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="font-mono text-base font-semibold tabular-nums">
-                    {formatMoney(e.amount)}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  </TableCell>
+                  <TableCell className="p-1 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-offset-2 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Actions for ${e.description}`}
+                      >
+                        <MoreHorizontalIcon className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            onEdit(e);
+                          }}
+                        >
+                          <PencilIcon className="size-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setPendingDelete(e)}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <AlertDialog
+        open={pendingDelete != null}
+        onOpenChange={(o) => {
+          if (!o && !deleteBusy) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete ? (
+                <>
+                  This will permanently remove &quot;{pendingDelete.description}&quot; (
+                  {fmt(pendingDelete.amount)}). This cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteBusy}
+              onClick={() => void handleConfirmDelete()}
+            >
+              {deleteBusy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

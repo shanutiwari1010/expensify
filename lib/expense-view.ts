@@ -2,13 +2,27 @@ import type { ExpenseDto, ExpenseSortOption } from "@/lib/schemas/expense";
 import { toDecimal } from "@/lib/money";
 
 /**
- * Client-side filter + sort for the expense list. The UI keeps the full list in
- * memory (no pagination yet) and derives the visible rows here — no network
- * round-trip when the user changes category or sort.
+ * Client-side filter + sort for the expense list. The full list is held in
+ * state; we derive the filtered/sorted set here, then paginate a slice for the
+ * table (no network round-trip when page, category, or sort changes).
  *
  * Ordering matches `listExpenses` in `lib/services/expenses.ts` (Prisma
  * `orderBy`) so behavior stays aligned with `GET /api/expenses`.
  */
+
+/** Allowed rows per page in the expense table UI. */
+export const EXPENSE_PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+export type ExpensePageSize = (typeof EXPENSE_PAGE_SIZE_OPTIONS)[number];
+
+export function totalPageCount(itemCount: number, pageSize: number): number {
+  if (itemCount <= 0) return 1;
+  return Math.ceil(itemCount / pageSize);
+}
+
+export function paginateList<T>(items: T[], page: number, pageSize: number): T[] {
+  const start = (page - 1) * pageSize;
+  return items.slice(start, start + pageSize);
+}
 
 export function filterExpensesByCategory(
   expenses: ExpenseDto[],

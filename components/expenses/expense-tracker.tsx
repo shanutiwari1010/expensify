@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +20,19 @@ import { ExpenseList } from "./expense-list";
 import { ExpenseTotal } from "./expense-total";
 import { StatsCards } from "./stats-cards";
 import { CategoryManager } from "./category-manager";
-import type { CategoryDto } from "@/lib/api-client";
-import { getVisibleExpenses } from "@/lib/expense-view";
+import { deleteExpenseRequest, FetchError, type CategoryDto } from "@/lib/api-client";
+import {
+  getVisibleExpenses,
+  paginateList,
+  totalPageCount,
+  type ExpensePageSize,
+} from "@/lib/expense-view";
+import { ExpenseTablePagination } from "./expense-table-pagination";
+import {
+  formatAddExpenseShortcut,
+  formatCommandPaletteFallbackShortcut,
+  formatCommandPaletteShortcut,
+} from "@/lib/keyboard-shortcuts";
 import { sumDecimals, toDecimal } from "@/lib/money";
 import type { ExpenseDto, ListExpensesResponse } from "@/lib/schemas/expense";
 
@@ -47,10 +59,13 @@ export function ExpenseTracker({
   const [category, setCategory] = useState<string>("all");
   const [sort, setSort] = useState<SortOption>("date_desc");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editExpense, setEditExpense] = useState<ExpenseDto | null>(null);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [suggestedCategoryName, setSuggestedCategoryName] = useState<string | undefined>(
     undefined
   );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<ExpensePageSize>(10);
 
   const grandTotal = useMemo(
     () => sumDecimals(expenses.map((e) => toDecimal(e.amount))).toFixed(2),
@@ -65,13 +80,33 @@ export function ExpenseTracker({
     setSort(next);
   }, []);
 
-  const onCreated = useCallback((created: ExpenseDto) => {
+  const onAddSuccess = useCallback((created: ExpenseDto) => {
     setDialogOpen(false);
     setExpenses((prev) => {
       if (prev.some((e) => e.id === created.id)) return prev;
       return [...prev, created];
     });
   }, []);
+
+  const onUpdateSuccess = useCallback((updated: ExpenseDto) => {
+    setEditExpense(null);
+    setExpenses((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  }, []);
+
+  const onDelete = useCallback(async (e: ExpenseDto) => {
+    try {
+      await deleteExpenseRequest(e.id);
+      setExpenses((prev) => prev.filter((x) => x.id !== e.id));
+      if (editExpense?.id === e.id) setEditExpense(null);
+      toast.success("Transaction deleted.");
+    } catch (err) {
+      const message =
+        err instanceof FetchError
+          ? err.body?.error?.message ?? err.message
+          : "Could not delete the expense.";
+      toast.error(message);
+    }
+  }, [editExpense?.id]);
 
   const onRequestCreateCategory = useCallback((name?: string) => {
     setSuggestedCategoryName(name?.trim() ? name.trim() : undefined);
@@ -83,12 +118,35 @@ export function ExpenseTracker({
     [expenses, category, sort]
   );
 
+  const totalPages = useMemo(
+    () => totalPageCount(visibleExpenses.length, pageSize),
+    [visibleExpenses.length, pageSize]
+  );
+
+  const pagedExpenses = useMemo(
+    () => paginateList(visibleExpenses, page, pageSize),
+    [visibleExpenses, page, pageSize]
+  );
+
   const total = useMemo(() => {
     return sumDecimals(visibleExpenses.map((e) => toDecimal(e.amount))).toFixed(2);
   }, [visibleExpenses]);
 
+  // New filter/sort or page size: start from first page
   useEffect(() => {
-    const onAddExpense = () => setDialogOpen(true);
+    setPage(1);
+  }, [category, sort, pageSize]);
+
+  // If the list shrinks (delete, filter), stay on a valid page
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    const onAddExpense = () => {
+      if (editExpense) return;
+      setDialogOpen(true);
+    };
     const onManageCategories = () => setCategoryManagerOpen(true);
     const onSetCategory = (e: Event) => {
       const ce = e as CustomEvent<{ category?: string }>;
@@ -99,18 +157,18 @@ export function ExpenseTracker({
       setSort(ce.detail?.sort ?? "date_desc");
     };
 
-    window.addEventListener("expensify:add-expense", onAddExpense);
-    window.addEventListener("expensify:manage-categories", onManageCategories);
-    window.addEventListener("expensify:set-category", onSetCategory);
-    window.addEventListener("expensify:set-sort", onSetSort);
+    globalThis.addEventListener("expensify:add-expense", onAddExpense);
+    globalThis.addEventListener("expensify:manage-categories", onManageCategories);
+    globalThis.addEventListener("expensify:set-category", onSetCategory);
+    globalThis.addEventListener("expensify:set-sort", onSetSort);
 
     return () => {
-      window.removeEventListener("expensify:add-expense", onAddExpense);
-      window.removeEventListener("expensify:manage-categories", onManageCategories);
-      window.removeEventListener("expensify:set-category", onSetCategory);
-      window.removeEventListener("expensify:set-sort", onSetSort);
+      globalThis.removeEventListener("expensify:add-expense", onAddExpense);
+      globalThis.removeEventListener("expensify:manage-categories", onManageCategories);
+      globalThis.removeEventListener("expensify:set-category", onSetCategory);
+      globalThis.removeEventListener("expensify:set-sort", onSetSort);
     };
-  }, []);
+  }, [editExpense]);
 
   const handleCategoriesChange = useCallback(async (newCategories: CategoryDto[]) => {
     setCategories(newCategories);
@@ -141,7 +199,9 @@ export function ExpenseTracker({
               <Button className="gap-2" onClick={() => setDialogOpen(true)}>
                 <PlusIcon className="size-4" />
                 Add Expense
-                <Kbd className="ml-1 hidden sm:inline-flex">⌘N</Kbd>
+                <Kbd className="ml-1 hidden sm:inline-flex">
+                  {formatAddExpenseShortcut()}
+                </Kbd>
               </Button>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
@@ -150,20 +210,60 @@ export function ExpenseTracker({
                     Record a new expense with amount, category, and description.
                   </DialogDescription>
                 </DialogHeader>
-                <ExpenseForm
-                  onCreated={onCreated}
-                  categories={categories}
-                  onRequestCreateCategory={onRequestCreateCategory}
-                />
+                {dialogOpen ? (
+                  <ExpenseForm
+                    key="add-expense"
+                    mode="create"
+                    onSuccess={onAddSuccess}
+                    categories={categories}
+                    onRequestCreateCategory={onRequestCreateCategory}
+                  />
+                ) : null}
+              </DialogContent>
+            </Dialog>
+
+            <Dialog
+              open={editExpense != null}
+              onOpenChange={(o) => {
+                if (!o) setEditExpense(null);
+              }}
+            >
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Edit transaction</DialogTitle>
+                  <DialogDescription>
+                    Update amount, re-categorize, or change the description and date.
+                  </DialogDescription>
+                </DialogHeader>
+                {editExpense ? (
+                  <ExpenseForm
+                    key={editExpense.id}
+                    mode="edit"
+                    expense={editExpense}
+                    onSuccess={onUpdateSuccess}
+                    onCancel={() => setEditExpense(null)}
+                    categories={categories}
+                    onRequestCreateCategory={onRequestCreateCategory}
+                  />
+                ) : null}
               </DialogContent>
             </Dialog>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <ExpenseList
-            expenses={visibleExpenses}
+            expenses={pagedExpenses}
             isLoading={false}
             categories={categories}
+            onEdit={setEditExpense}
+            onDelete={onDelete}
+          />
+          <ExpenseTablePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={visibleExpenses.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
           />
           <ExpenseTotal
             total={total}
@@ -173,14 +273,12 @@ export function ExpenseTracker({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <span>Tip:</span>
-        <span>Press</span>
-        <Kbd>⌘K</Kbd>
-        <span className="hidden sm:inline">or</span>
-        <Kbd className="hidden sm:inline">⌘⇧P</Kbd>
-        <span>to open the command palette</span>
-      </div>
+      <p className="text-center text-xs text-muted-foreground">
+        <Kbd className="mx-0.5">{formatAddExpenseShortcut()}</Kbd> add ·{" "}
+        <Kbd className="mx-0.5">{formatCommandPaletteShortcut()}</Kbd> /{" "}
+        <Kbd className="mx-0.5">{formatCommandPaletteFallbackShortcut()}</Kbd> command
+        palette
+      </p>
 
       <CategoryManager
         open={categoryManagerOpen}

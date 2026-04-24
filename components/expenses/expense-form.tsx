@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { PlusIcon, Loader2Icon } from "lucide-react";
+import { CheckIcon, Loader2Icon, PlusIcon } from "lucide-react";
 
+import { useDisplayCurrency } from "@/components/providers/currency-preference-provider";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -23,18 +24,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createExpenseRequest, FetchError, type CategoryDto } from "@/lib/api-client";
+import {
+  createExpenseRequest,
+  FetchError,
+  updateExpenseRequest,
+  type CategoryDto,
+} from "@/lib/api-client";
 import {
   createExpenseSchema,
   type CreateExpenseInput,
   type ExpenseDto,
 } from "@/lib/schemas/expense";
+import { getCurrencyDisplaySymbol } from "@/lib/money";
 
 function todayIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+function toFormValues(e: ExpenseDto): CreateExpenseInput {
+  return {
+    amount: e.amount,
+    category: e.category,
+    description: e.description,
+    date: e.date,
+  };
+}
+
+const emptyDefaults: CreateExpenseInput = {
+  amount: "",
+  category: "" as CreateExpenseInput["category"],
+  description: "",
+  date: todayIso(),
+};
 
 function useIdempotencyKey() {
   const ref = useRef<string | null>(null);
@@ -48,44 +71,65 @@ function useIdempotencyKey() {
   return { getKey, reset };
 }
 
-const emptyDefaults: CreateExpenseInput = {
-  amount: "",
-  category: "" as CreateExpenseInput["category"],
-  description: "",
-  date: todayIso(),
-};
-
 export type ExpenseFormProps = {
-  onCreated: (expense: ExpenseDto) => void;
+  mode?: "create" | "edit";
+  /** Required when `mode` is `edit` */
+  expense?: ExpenseDto;
   categories: CategoryDto[];
   onRequestCreateCategory: (suggestedName?: string) => void;
+  onSuccess: (expense: ExpenseDto) => void;
+  onCancel?: () => void;
 };
 
 export function ExpenseForm({
-  onCreated,
+  mode = "create",
+  expense,
   categories,
   onRequestCreateCategory,
+  onSuccess,
+  onCancel,
 }: ExpenseFormProps) {
+  const { currency } = useDisplayCurrency();
+  const amountSymbol = getCurrencyDisplaySymbol(currency);
   const formId = useId();
   const { getKey, reset: rollIdempotencyKey } = useIdempotencyKey();
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    control,
-    formState: { errors, isSubmitting },
-  } = useForm<CreateExpenseInput>({
-    resolver: zodResolver(createExpenseSchema),
-    defaultValues: emptyDefaults,
-    mode: "onBlur",
-  });
+  const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } =
+    useForm<CreateExpenseInput>({
+      resolver: zodResolver(createExpenseSchema),
+      defaultValues:
+        mode === "edit" && expense ? toFormValues(expense) : emptyDefaults,
+      mode: "onBlur",
+    });
+
+  useEffect(() => {
+    if (mode === "edit" && expense) {
+      reset(toFormValues(expense));
+    }
+  }, [mode, expense, reset]);
 
   const onSubmit = handleSubmit(async (values) => {
+    if (mode === "edit" && expense) {
+      try {
+        const updated = await updateExpenseRequest(expense.id, values);
+        onSuccess(updated);
+        toast.success("Transaction updated.");
+      } catch (err) {
+        const serverMessage =
+          err instanceof FetchError ? err.body?.error?.message ?? err.message : undefined;
+        const message = serverMessage ?? "Could not update the expense. Please try again.";
+        toast.error(message);
+        if (serverMessage?.includes("doesn't exist")) {
+          onRequestCreateCategory(values.category);
+        }
+      }
+      return;
+    }
+
     const idempotencyKey = getKey();
     try {
       const created = await createExpenseRequest(values, idempotencyKey);
-      onCreated(created);
+      onSuccess(created);
       toast.success("Expense added successfully!");
       reset({ ...emptyDefaults, date: todayIso() });
       rollIdempotencyKey();
@@ -94,17 +138,22 @@ export function ExpenseForm({
         err instanceof FetchError ? err.body?.error?.message ?? err.message : undefined;
       const message = serverMessage ?? "Could not save the expense. Please try again.";
       toast.error(message);
-
-      // If the category doesn't exist, guide the user into creating it.
       if (serverMessage?.includes("doesn't exist")) {
         onRequestCreateCategory(values.category);
       }
     }
   });
 
+  const isEdit = mode === "edit";
+
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <FieldGroup className="gap-4">
+        {isEdit ? (
+          <p className="text-sm text-muted-foreground">
+            Re-categorize or fix amount and description. Changes apply after you save.
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${formId}-amount`}>Amount</FieldLabel>
@@ -115,6 +164,7 @@ export function ExpenseForm({
                 <AmountInput
                   id={`${formId}-amount`}
                   placeholder="0.00"
+                  currency={amountSymbol}
                   aria-invalid={Boolean(errors.amount) || undefined}
                   value={field.value}
                   onChange={field.onChange}
@@ -213,24 +263,36 @@ export function ExpenseForm({
           <FieldError errors={errors.date ? [errors.date] : undefined} />
         </Field>
 
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full gap-2"
-          size="lg"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2Icon className="size-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <PlusIcon className="size-4" />
-              Add Expense
-            </>
-          )}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          {isEdit && onCancel ? (
+            <Button type="button" variant="outline" onClick={onCancel} className="sm:mr-auto">
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full gap-2 sm:w-auto"
+            size="lg"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2Icon className="size-4 animate-spin" />
+                Saving...
+              </>
+            ) : isEdit ? (
+              <>
+                <CheckIcon className="size-4" />
+                Save changes
+              </>
+            ) : (
+              <>
+                <PlusIcon className="size-4" />
+                Add Expense
+              </>
+            )}
+          </Button>
+        </div>
       </FieldGroup>
     </form>
   );
